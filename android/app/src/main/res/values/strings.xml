@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">城市资本家·联机房主</string>
+    <string name="notif_channel">联机服务</string>
+    <string name="notif_title">城市资本家 服务器运行中</string>
+    <string name="btn_start">启动服务器</string>
+    <string name="btn_stop">停止服务器</string>
+    <string name="btn_open_game">以房主身份进入游戏</string>
+    <string name="btn_copy">复制地址</string>
+</resources>

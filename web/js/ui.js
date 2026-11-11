@@ -600,7 +600,12 @@
           </div>
         `;
       } else if (pd.type === 'bank') {
-        html = `<button class="btn btn-primary" id="btn-open-bank">🏦 打开银行</button>`;
+        html = `
+          <div class="action-row">
+            <button class="btn btn-primary" id="btn-open-bank">🏦 打开银行</button>
+            <button class="btn btn-ghost" id="btn-close-pending">完成</button>
+          </div>
+        `;
       } else if (pd.type === 'stock') {
         html = `<button class="btn btn-ghost" id="btn-close-pending">完成交易</button>`;
       } else if (pd.type === 'event' || pd.type === 'info' || pd.type === 'rent' || pd.type === 'tax' || pd.type === 'auctionResult') {
@@ -988,8 +993,11 @@
 
     const conf = D.PROPERTIES[pd.propertyId];
     const group = D.GROUPS[conf.group];
-    const cur = E.currentPlayer(state);
-    const isMyTurn = pd.order[pd.index] === cur.id;
+    const bidderId = pd.order[pd.index];
+    const bidder = bidderId ? state.players.find(function (x) { return x.id === bidderId; }) : null;
+    // 出价面向“当前指定出价人”，而非回合玩家：
+    // 本地热座下拍卖常在 AI 回合触发，回合玩家恒为 AI，若按 currentPlayer 判定会导致人类看不到出价表单而死锁。
+    const isMyTurn = !!(bidder && !bidder.isAI);
     const minBid = E.nextBidMinimum(pd);
 
     let html = `
@@ -1025,7 +1033,7 @@
               <button class="btn btn-primary" id="bid-btn">出价</button>
               <button class="btn btn-ghost" id="pass-btn">放弃</button>
             </div>
-            <div class="small muted" style="margin-top:6px">你的现金: ¥${fmt(cur.cash)}</div>
+            <div class="small muted" style="margin-top:6px">${bidder.name} 的现金: ¥${fmt(bidder.cash)}</div>
           </div>
         ` : '<div class="mono-note">等待其他玩家出价...</div>'}
       </div>

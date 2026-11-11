@@ -410,10 +410,35 @@
     UI.renderPlayersBar(gameState);
     UI.updateCenterInfo(gameState);
     UI.renderSidePanel(gameState);
+    updateTopBar(gameState);
 
     // 联机模式：同步状态给其他玩家
     if (gameConfig.playMode === 'online' && MP.state.isHost) {
       MP.syncState(gameState);
+    }
+  }
+
+  // 顶栏状态：回合数 / 模式 / 当前玩家
+  function updateTopBar(state) {
+    const roundEl = UI.$('#round-label');
+    const modeEl = UI.$('#mode-label');
+    const turnEl = UI.$('#turn-label');
+    if (roundEl) {
+      roundEl.textContent = state.status === 'finished'
+        ? ('共 ' + state.round + ' 回合')
+        : ('第 ' + state.round + ' 回合');
+    }
+    if (modeEl) {
+      const mode = D.MODES[state.mode];
+      modeEl.textContent = mode ? mode.name : '限时模式';
+    }
+    if (turnEl) {
+      if (state.status !== 'playing') {
+        turnEl.textContent = '已结束';
+      } else {
+        const cur = E.currentPlayer(state);
+        turnEl.textContent = cur ? (cur.name + ' 行动') : '等待开局';
+      }
     }
   }
 
@@ -693,14 +718,21 @@
 
   function doBid(amount) {
     if (!gameState) return;
-    const cur = E.currentPlayer(gameState);
-    const result = E.placeBid(gameState, cur.id, amount);
+    const pd = gameState.pending;
+    if (!pd || pd.type !== 'auction') return;
+    const bidderId = pd.order[pd.index];
+    if (!bidderId) return;
+    // 为“当前指定出价人”出价，而不是回合玩家（拍卖常在他人回合触发）
+    const result = E.placeBid(gameState, bidderId, amount);
     if (result.ok) {
       renderGame();
       if (gameState.pending && gameState.pending.type === 'auction') {
         UI.showAuctionModal(gameState);
-        // 修复：人类出价后，检查下一个出价者是否是AI
+        // 人类出价后，继续驱动后续 AI 出价者
         checkAuctionAI();
+      } else {
+        // 拍卖已结束：关闭残留的拍卖弹窗，露出操作栏的“确定”按钮
+        UI.hideModal();
       }
     } else {
       UI.showToast(result.message, 'error');
@@ -745,6 +777,9 @@
         UI.showAuctionModal(gameState);
         // 继续检查下一个出价者
         checkAuctionAI();
+      } else {
+        // 拍卖结束：关闭残留拍卖弹窗
+        UI.hideModal();
       }
     }
   }
@@ -818,6 +853,8 @@
         UI.showEventModal(pd.card, gameState);
       } else if (pd.type === 'auction') {
         UI.showAuctionModal(gameState);
+        // 驱动 AI 出价链（若当前指定出价人为 AI）
+        checkAuctionAI();
       }
     }
 

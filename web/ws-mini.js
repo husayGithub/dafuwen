@@ -44,9 +44,10 @@ class WebSocket {
       offset = 10;
     }
 
+    let mask = null;
     if (isMasked) {
       if (this._buffer.length < offset + 4 + payloadLength) return false;
-      const mask = this._buffer.slice(offset, offset + 4);
+      mask = this._buffer.slice(offset, offset + 4);
       offset += 4;
     } else {
       if (this._buffer.length < offset + payloadLength) return false;
