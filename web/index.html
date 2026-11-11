@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#16233f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>城市资本家 · City Tycoon</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏙️</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%2316233f'/><text y='380' font-size='320' text-anchor='middle' x='256'>🏙️</text></svg>">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- ============ 大厅 ============ -->
+    <section id="lobby-screen" class="screen active">
+      <div class="lobby-decor" aria-hidden="true">
+        <span class="decor-building b1">🏢</span>
+        <span class="decor-building b2">🏦</span>
+        <span class="decor-building b3">🏙️</span>
+        <span class="decor-building b4">🏨</span>
+        <span class="decor-building b5">🏬</span>
+        <span class="decor-cloud c1"></span>
+        <span class="decor-cloud c2"></span>
+      </div>
+
+      <div class="lobby-shell">
+        <header class="lobby-hero">
+          <div class="hero-badge">2～4 人 · 离线热座</div>
+          <h1>城市<span>资本家</span></h1>
+          <p class="hero-en">CITY TYCOON</p>
+          <p class="hero-sub">买地建楼、低吸高抛、贷款扩张。用有限回合，成为这座城市最有钱的人。</p>
+          <div class="hero-chips">
+            <span>🎲 40 格城市棋盘</span>
+            <span>🏠 22 块地产</span>
+            <span>📈 5 支股票</span>
+            <span>🎴 30 张事件</span>
+          </div>
+        </header>
+
+        <div class="lobby-grid">
+          <section class="panel setup-panel">
+            <div class="panel-head">
+              <h2>开局设置</h2>
+              <span class="panel-note" id="panel-mode-note">本地多人 · 一台设备轮流操作</span>
+            </div>
+
+            <div class="setup-block">
+              <h3>游戏方式</h3>
+              <div class="play-mode-grid" id="play-mode-grid">
+                <button class="play-mode-card active" data-mode="local">
+                  <span class="pmc-icon">📱</span>
+                  <span class="pmc-name">本地热座</span>
+                  <span class="pmc-desc">一台设备轮流操作</span>
+                </button>
+                <button class="play-mode-card" data-mode="online">
+                  <span class="pmc-icon">🌐</span>
+                  <span class="pmc-name">局域网联机</span>
+                  <span class="pmc-desc">多台设备联机游戏</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="setup-block" id="online-settings" style="display:none">
+              <h3>联机设置</h3>
+              <div class="online-form">
+                <div class="online-row">
+                  <label>服务器地址</label>
+                  <input type="text" class="input" id="server-url" placeholder="ws://192.168.1.100:8080">
+                </div>
+                <div class="online-row">
+                  <label>房间号</label>
+                  <div class="room-input">
+                    <input type="text" class="input" id="room-id" placeholder="自动生成" maxlength="6">
+                    <button class="btn btn-sm" id="btn-gen-room">随机</button>
+                  </div>
+                </div>
+                <div class="online-row">
+                  <label>你的昵称</label>
+                  <input type="text" class="input" id="player-name" placeholder="玩家" maxlength="12">
+                </div>
+                <div class="online-actions">
+                  <button class="btn btn-primary" id="btn-create-room">创建房间</button>
+                  <button class="btn btn-ghost" id="btn-join-room">加入房间</button>
+                </div>
+                <div id="room-status" class="room-status hidden"></div>
+              </div>
+            </div>
+
+            <div class="setup-block" id="local-settings">
+              <h3>游戏模式</h3>
+              <div class="mode-grid" id="mode-grid"></div>
+            </div>
+
+            <div class="setup-block" id="player-settings">
+              <div class="row-between">
+                <h3>玩家人数</h3>
+                <div class="segmented" id="player-count">
+                  <button data-count="2">2 人</button>
+                  <button data-count="3">3 人</button>
+                  <button data-count="4" class="active">4 人</button>
+                </div>
+              </div>
+              <div class="player-slots" id="player-slots"></div>
+            </div>
+
+            <div class="lobby-cta">
+              <button id="start-btn" class="btn btn-primary btn-lg">
+                <span>开始游戏</span>
+                <span class="btn-arrow">→</span>
+              </button>
+              <button id="continue-btn" class="btn btn-ghost hidden">继续上次游戏</button>
+            </div>
+            <p class="lobby-footnote">所有资产均为游戏内虚拟数据，不涉及真实货币与金融交易。</p>
+          </section>
+
+          <aside class="panel lobby-side">
+            <h2>这座城市怎么玩</h2>
+            <ol class="howto">
+              <li><b>掷骰前进</b><span>经过起点领 2,000，落在无主地产可购买。</span></li>
+              <li><b>盖楼收租</b><span>地产可升到 Lv3，集齐同区域全部地产租金翻倍。</span></li>
+              <li><b>炒股与银行</b><span>交易所买卖 5 支股票；银行存取款、贷款、抵押周转。</span></li>
+              <li><b>事件与交易</b><span>30 张事件卡改变经济；可以和其他玩家谈地产、股票交易。</span></li>
+              <li><b>成为首富</b><span>经典模式拼破产，限时模式比 20 / 40 回合后的总资产。</span></li>
+            </ol>
+            <details class="rules-details">
+              <summary>财富公式与关键规则</summary>
+              <p><b>总资产</b> = 现金 + 银行存款 + 地产估值 + 股票市值 − 负债。</p>
+              <p>地产估值按地价与已投入的升级费用计算；抵押地产的贷款会完整计入负债，不能算成财富。</p>
+              <p>存款每 5 回合 +2% 利息，贷款每 5 回合 +5% 利息；贷款上限为总资产的 50%。</p>
+              <p>股票每回合结算时更新价格，单轮涨跌限制在 ±15% 内；买卖收取 1% 手续费，每回合最多两笔。</p>
+              <p>破产时地产回归银行、股票清零、负债免除，剩余现金归债权人。</p>
+            </details>
+            <div class="side-tip">
+              <span class="tip-emoji">💡</span>
+              <p>第一次玩推荐「快速模式 · 20 回合」，大约 30～45 分钟。用一台设备轮流操作即可，电脑玩家会自动行动。</p>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 游戏 ============ -->
+    <section id="game-screen" class="screen">
+      <header class="topbar">
+        <div class="topbar-brand">
+          <span class="brand-mark">🏙️</span>
+          <span class="brand-name">城市资本家</span>
+        </div>
+        <div class="topbar-meta">
+          <span class="pill pill-round" id="round-label">第 1 回合</span>
+          <span class="pill" id="mode-label">限时模式</span>
+          <span class="pill pill-ghost" id="turn-label">等待开局</span>
+        </div>
+        <div class="topbar-actions">
+          <button class="icon-btn" id="export-btn" title="导出存档" aria-label="导出存档">💾</button>
+          <button class="icon-btn" id="quit-btn" title="返回大厅" aria-label="返回大厅">✕</button>
+        </div>
+      </header>
+
+      <div class="players-bar" id="players-bar"></div>
+
+      <main class="game-main">
+        <div class="board-column">
+          <div class="board-wrap" id="board-wrap">
+            <div id="board" class="board"></div>
+            <div id="tokens" class="tokens-layer"></div>
+          </div>
+          <div class="board-hint" id="board-hint">点击任意地块查看详情</div>
+        </div>
+
+        <aside class="side-panel">
+          <div class="tabs" id="tabs">
+            <button data-tab="overview" class="active">概览</button>
+            <button data-tab="assets">资产</button>
+            <button data-tab="market">市场</button>
+          </div>
+
+          <div class="tab-body">
+            <div class="tab-pane active" id="pane-overview">
+              <div id="turn-card"></div>
+              <div class="mini-log" id="mini-log"></div>
+            </div>
+            <div class="tab-pane" id="pane-assets"></div>
+            <div class="tab-pane" id="pane-market"></div>
+          </div>
+
+          <div class="action-bar" id="action-bar"></div>
+        </aside>
+      </main>
+    </section>
+
+  </div>
+
+  <div id="modal-root" class="modal-root hidden" role="dialog" aria-modal="true">
+    <div class="modal-backdrop" data-action="modal-backdrop"></div>
+    <div class="modal-card" id="modal-card"></div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/multiplayer.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    // 注册 Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js')
+        .then(function(reg) {
+          console.log('[PWA] Service Worker 已注册');
+        })
+        .catch(function(err) {
+          console.log('[PWA] Service Worker 注册失败:', err);
+        });
+    }
+  </script>
+</body>
+</html>
