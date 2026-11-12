@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import kotlin.concurrent.thread
 
 /**
  * 前台服务：在 App 退到后台时仍保持服务器进程存活。
@@ -46,7 +47,8 @@ class GameHostService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                ServerController.stop(this)
+                // socket 关闭是网络 I/O，主线程直接调会抛 NetworkOnMainThreadException
+                thread(name = "server-stop") { ServerController.stop(this) }
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
                 return START_NOT_STICKY
@@ -60,8 +62,10 @@ class GameHostService : Service() {
                 } else {
                     startForeground(NOTIF_ID, notif)
                 }
+                // 解压资源 + ServerSocket 绑定都是阻塞 I/O，必须离开主线程，
+                // 否则主线程抛 NetworkOnMainThreadException 导致闪退
                 if (!ServerController.isRunning) {
-                    ServerController.start(this, port)
+                    thread(name = "server-start") { ServerController.start(this, port) }
                 }
             }
         }
