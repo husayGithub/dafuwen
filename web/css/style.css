@@ -2115,3 +2115,15 @@ b, strong { font-weight: 700; }
   background: linear-gradient(180deg, #cfd5cc 0%, #b8c0b8 100%);
   border-radius: 99px;
 }
+
+/* ---------- 玩家交易 ---------- */
+.trade-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+@media (max-width: 560px) { .trade-cols { grid-template-columns: 1fr; } }
+.trade-col { min-width: 0; }
+.trade-col .section-title { margin-top: 0; }
+.mini-title { font-size: 11px; font-weight: 800; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.04em; margin: 12px 0 6px; }
+.trade-check { cursor: pointer; }
+.trade-check input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 auto; accent-color: var(--teal); cursor: pointer; }
+.trade-stock { width: 78px; flex: 0 0 auto; }
+.trade-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.trade-list li { font-size: 12.5px; padding: 7px 10px; border-radius: 10px; background: linear-gradient(135deg, #fafbfc 0%, #f5f7fa 100%); border: 1px solid var(--line); margin-bottom: 6px; word-break: break-all; }

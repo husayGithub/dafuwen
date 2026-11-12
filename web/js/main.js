@@ -455,6 +455,10 @@
       onOpenFinancing: doOpenFinancing,
       onOpenAuction: doOpenAuction,
       onOpenTrade: doOpenTrade,
+      onProposeTrade: doProposeTrade,
+      onRespondTrade: doRespondTrade,
+      onAcceptTrade: doAcceptTrade,
+      onRejectTrade: doRejectTrade,
       onUpgrade: doUpgrade,
       onBuyStock: doBuyStock,
       onSellStock: doSellStock,
@@ -576,7 +580,77 @@
 
   function doOpenTrade() {
     if (!gameState) return;
-    UI.showToast('交易功能开发中...', 'error');
+    if (gameState.status !== 'playing') return;
+    const cur = E.currentPlayer(gameState);
+    if (!cur || cur.isAI) { UI.showToast('现在不是你的回合', 'error'); return; }
+    if (gameState.phase !== 'action') { UI.showToast('请先处理当前事件', 'error'); return; }
+    UI.showTradeModal(gameState);
+  }
+
+  function doProposeTrade(offer) {
+    if (!gameState) return;
+    const result = E.proposeTrade(gameState, offer);
+    if (!result.ok) { UI.showToast(result.message, 'error'); return; }
+    UI.hideModal();
+    renderGame();
+    maybeRespondTrade();
+  }
+
+  // 交易发起后：对方为 AI 则自动应答，否则提示人类确认
+  function maybeRespondTrade() {
+    if (!gameState) return;
+    const pd = gameState.pending;
+    if (!pd || pd.type !== 'trade') return;
+    const to = E.byId(gameState, pd.offer.toId);
+    if (to && to.isAI) {
+      clearAITimer();
+      aiTimer = setTimeout(function () { resolveAITrade(); }, 800);
+    } else {
+      UI.showTradeOfferModal(gameState);
+    }
+  }
+
+  function resolveAITrade() {
+    if (!gameState) return;
+    const pd = gameState.pending;
+    if (!pd || pd.type !== 'trade') return;
+    const offer = pd.offer;
+    const to = E.byId(gameState, offer.toId);
+    if (!to || !to.isAI) return;
+    const accept = AI.shouldAcceptTrade(gameState, offer, to, E);
+    const res = accept ? E.acceptTrade(gameState, to.id) : E.rejectTrade(gameState, to.id);
+    UI.hideModal();
+    renderGame();
+    if (res.ok && accept) UI.showToast(to.name + ' 接受了交易', 'success');
+    else if (res.ok) UI.showToast(to.name + ' 拒绝了交易', 'error');
+    else UI.showToast(res.message, 'error');
+  }
+
+  function doRespondTrade() {
+    if (!gameState) return;
+    const pd = gameState.pending;
+    if (!pd || pd.type !== 'trade') return;
+    const to = E.byId(gameState, pd.offer.toId);
+    if (to && to.isAI) { resolveAITrade(); }
+    else { UI.showTradeOfferModal(gameState); }
+  }
+
+  function doAcceptTrade() {
+    if (!gameState) return;
+    const pd = gameState.pending;
+    if (!pd || pd.type !== 'trade') return;
+    const result = E.acceptTrade(gameState, pd.offer.toId);
+    if (result.ok) { UI.hideModal(); renderGame(); UI.showToast('交易完成', 'success'); }
+    else UI.showToast(result.message, 'error');
+  }
+
+  function doRejectTrade() {
+    if (!gameState) return;
+    const pd = gameState.pending;
+    if (!pd || pd.type !== 'trade') return;
+    const result = E.rejectTrade(gameState, pd.offer.toId);
+    if (result.ok) { UI.hideModal(); renderGame(); UI.showToast('已拒绝交易', 'error'); }
+    else UI.showToast(result.message, 'error');
   }
 
   function doUpgrade(propertyId) {

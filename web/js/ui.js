@@ -593,10 +593,11 @@
       const pd = state.pending;
       if (pd.type === 'property') {
         const conf = D.PROPERTIES[pd.propertyId];
+        const canAfford = !!cur && cur.cash >= conf.price;
         html = `
           <div class="action-row">
-            <button class="btn btn-primary" id="btn-buy">购买 ¥${fmt(conf.price)}</button>
-            <button class="btn btn-ghost" id="btn-decline">放弃</button>
+            <button class="btn btn-primary" id="btn-buy" ${canAfford ? '' : 'disabled'}>购买 ¥${fmt(conf.price)}</button>
+            <button class="btn btn-ghost" id="btn-decline">${canAfford ? '放弃' : '现金不足'}</button>
           </div>
         `;
       } else if (pd.type === 'bank') {
@@ -607,13 +608,15 @@
           </div>
         `;
       } else if (pd.type === 'stock') {
-        html = `<button class="btn btn-ghost" id="btn-close-pending">完成交易</button>`;
+        html = `<button class="btn btn-ghost" id="btn-close-pending">完成买卖</button>`;
       } else if (pd.type === 'event' || pd.type === 'info' || pd.type === 'rent' || pd.type === 'tax' || pd.type === 'auctionResult') {
         html = `<button class="btn btn-primary" id="btn-close-pending">确定</button>`;
       } else if (pd.type === 'financing') {
         html = `<button class="btn btn-danger" id="btn-open-financing">💸 资金周转 (需 ¥${fmt(pd.amount)})</button>`;
       } else if (pd.type === 'auction') {
         html = `<button class="btn btn-primary" id="btn-open-auction">🔨 参与拍卖</button>`;
+      } else if (pd.type === 'trade') {
+        html = `<button class="btn btn-primary" id="btn-respond-trade">🤝 处理交易</button>`;
       }
     } else if (state.phase === 'action') {
       html = `
@@ -653,6 +656,9 @@
 
     const tradeBtn = bar.querySelector('#btn-trade');
     if (tradeBtn) tradeBtn.onclick = function () { if (global.gameUI && global.gameUI.onOpenTrade) global.gameUI.onOpenTrade(); };
+
+    const respondTradeBtn = bar.querySelector('#btn-respond-trade');
+    if (respondTradeBtn) respondTradeBtn.onclick = function () { if (global.gameUI && global.gameUI.onRespondTrade) global.gameUI.onRespondTrade(); };
   }
 
   /* ---------- 弹窗系统 ---------- */
@@ -1025,17 +1031,26 @@
 
     html += `
         </div>
-        ${isMyTurn ? `
+        ${isMyTurn ? (
+          (minBid <= bidder.cash) ? `
           <div style="margin-top:16px">
             <div class="section-title">你的出价 (最低 ¥${fmt(minBid)})</div>
             <div class="bank-form">
-              <input type="number" class="input" id="auction-bid" value="${minBid}" min="${minBid}" step="100">
+              <input type="number" class="input" id="auction-bid" value="${minBid}" min="${minBid}" max="${bidder.cash}" step="100">
               <button class="btn btn-primary" id="bid-btn">出价</button>
               <button class="btn btn-ghost" id="pass-btn">放弃</button>
             </div>
-            <div class="small muted" style="margin-top:6px">${bidder.name} 的现金: ¥${fmt(bidder.cash)}</div>
+            <div class="small muted" style="margin-top:6px">${bidder.name} 的现金: ¥${fmt(bidder.cash)}（最高可出 ¥${fmt(bidder.cash)}）</div>
           </div>
-        ` : '<div class="mono-note">等待其他玩家出价...</div>'}
+          ` : `
+          <div style="margin-top:16px">
+            <div class="mono-note">现金不足（最多 ¥${fmt(bidder.cash)}），无法达到最低出价 ¥${fmt(minBid)}，本轮只能放弃。</div>
+            <div style="text-align:center;margin-top:10px">
+              <button class="btn btn-ghost" id="pass-btn">放弃</button>
+            </div>
+          </div>
+          `
+        ) : '<div class="mono-note">等待其他玩家出价...</div>'}
       </div>
     `;
 
@@ -1046,9 +1061,18 @@
       if (!card) return;
 
       const bidBtn = card.querySelector('#bid-btn');
-      if (bidBtn) {
+      const bidInput = card.querySelector('#auction-bid');
+      if (bidBtn && bidInput) {
+        const checkBid = function () {
+          const v = parseInt(bidInput.value) || 0;
+          bidBtn.disabled = (v < minBid || v > bidder.cash);
+        };
+        bidInput.oninput = checkBid;
+        checkBid();
         bidBtn.onclick = function () {
-          const amt = parseInt(card.querySelector('#auction-bid').value) || 0;
+          const amt = parseInt(bidInput.value) || 0;
+          if (amt > bidder.cash) { showToast('现金不足，最多可出 ¥' + fmt(bidder.cash), 'error'); return; }
+          if (amt < minBid) { showToast('出价不得低于 ¥' + fmt(minBid), 'error'); return; }
           if (global.gameUI && global.gameUI.onBid) global.gameUI.onBid(amt);
         };
       }
@@ -1058,6 +1082,179 @@
           if (global.gameUI && global.gameUI.onBid) global.gameUI.onBid(0);
         };
       }
+    }, 0);
+  }
+
+  /* ---------- 玩家交易 ---------- */
+
+  function showTradeModal(state) {
+    const me = E.currentPlayer(state);
+    if (!me) return;
+    const others = state.players.filter(function (p) { return p.status === 'active' && p.id !== me.id; });
+    if (others.length === 0) { showToast('没有可交易的玩家', 'error'); return; }
+
+    function ownedProps(pid) {
+      return D.PROPERTY_LIST.filter(function (p) {
+        const st = state.properties[p.id];
+        return st && st.ownerId === pid && !st.mortgaged;
+      });
+    }
+    function ownedStocks(pid) {
+      const p = state.players.find(function (x) { return x.id === pid; });
+      if (!p) return [];
+      return Object.keys(p.stocks).filter(function (s) { return p.stocks[s] > 0; });
+    }
+
+    let html = `
+      <button class="modal-x">✕</button>
+      <div class="modal-head"><h3 class="modal-title">🤝 发起交易</h3></div>
+      <div class="modal-body">
+        <p class="small muted">与 ${me.name} 交换资产（抵押中的地产不可交易）。</p>
+        <div class="online-row">
+          <label>交易对象</label>
+          <select class="input" id="trade-target">
+            ${others.map(function (p) { return `<option value="${p.id}">${p.avatar} ${p.name}</option>`; }).join('')}
+          </select>
+        </div>
+        <div id="trade-builder"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" id="trade-cancel">取消</button>
+        <button class="btn btn-primary" id="trade-send">发起交易</button>
+      </div>
+    `;
+    showModal(html, { wide: true });
+
+    setTimeout(function () {
+      const card = $('#modal-card');
+      if (!card) return;
+      const targetSel = card.querySelector('#trade-target');
+      const builder = card.querySelector('#trade-builder');
+
+      function propsSection(pid, dir) {
+        const list = ownedProps(pid);
+        if (!list.length) return '<div class="asset-empty">无地产</div>';
+        return list.map(function (p) {
+          const lvl = state.properties[p.id].level;
+          return `<label class="asset-row trade-check">
+            <input type="checkbox" data-${dir}-prop="${p.id}">
+            <div class="asset-icon">${p.icon}</div>
+            <div class="asset-main"><div class="asset-name">${p.name}${lvl > 0 ? ' · Lv' + lvl : ''}</div>
+            <div class="asset-sub">地价 ¥${fmt(p.price)}</div></div>
+          </label>`;
+        }).join('');
+      }
+      function stocksSection(pid, dir) {
+        const list = ownedStocks(pid);
+        const owner = state.players.find(function (x) { return x.id === pid; });
+        if (!list.length) return '<div class="asset-empty">无股票</div>';
+        return list.map(function (sid) {
+          const conf = D.STOCKS[sid];
+          const sh = owner.stocks[sid];
+          return `<div class="asset-row">
+            <div class="asset-icon">${conf.icon}</div>
+            <div class="asset-main"><div class="asset-name">${conf.name}</div>
+            <div class="asset-sub">持 ${sh} 股 · 每股 ¥${fmt(state.stocks[sid].price)}</div></div>
+            <input type="number" class="input trade-stock" data-${dir}-stock="${sid}" min="0" max="${sh}" value="0">
+          </div>`;
+        }).join('');
+      }
+
+      function render() {
+        const tid = targetSel.value;
+        const to = state.players.find(function (p) { return p.id === tid; });
+        builder.innerHTML = `
+          <div class="trade-cols">
+            <div class="trade-col">
+              <div class="section-title">${me.avatar} ${me.name} 给出</div>
+              <div class="online-row"><label>现金</label><input type="number" class="input" id="give-cash" min="0" max="${me.cash}" value="0"></div>
+              <div class="mini-title">地产</div>${propsSection(me.id, 'give')}
+              <div class="mini-title">股票</div>${stocksSection(me.id, 'give')}
+            </div>
+            <div class="trade-col">
+              <div class="section-title">${to.avatar} ${to.name} 给出</div>
+              <div class="online-row"><label>现金</label><input type="number" class="input" id="get-cash" min="0" max="${to.cash}" value="0"></div>
+              <div class="mini-title">地产</div>${propsSection(to.id, 'get')}
+              <div class="mini-title">股票</div>${stocksSection(to.id, 'get')}
+            </div>
+          </div>
+        `;
+      }
+      targetSel.onchange = render;
+      render();
+
+      card.querySelector('#trade-cancel').onclick = hideModal;
+      card.querySelector('#trade-send').onclick = function () {
+        const offer = {
+          fromId: me.id,
+          toId: targetSel.value,
+          giveCash: parseInt(card.querySelector('#give-cash').value) || 0,
+          getCash: parseInt(card.querySelector('#get-cash').value) || 0,
+          giveProperties: Array.prototype.map.call(card.querySelectorAll('[data-give-prop]:checked'), function (el) { return el.dataset.giveProp; }),
+          getProperties: Array.prototype.map.call(card.querySelectorAll('[data-get-prop]:checked'), function (el) { return el.dataset.getProp; }),
+          giveStocks: {},
+          getStocks: {}
+        };
+        card.querySelectorAll('[data-give-stock]').forEach(function (el) { const n = parseInt(el.value) || 0; if (n > 0) offer.giveStocks[el.dataset.giveStock] = n; });
+        card.querySelectorAll('[data-get-stock]').forEach(function (el) { const n = parseInt(el.value) || 0; if (n > 0) offer.getStocks[el.dataset.getStock] = n; });
+        if (global.gameUI && global.gameUI.onProposeTrade) global.gameUI.onProposeTrade(offer);
+      };
+    }, 0);
+  }
+
+  function showTradeOfferModal(state) {
+    const pd = state.pending;
+    if (!pd || pd.type !== 'trade' || !pd.offer) return;
+    const offer = pd.offer;
+    const from = state.players.find(function (p) { return p.id === offer.fromId; });
+    const to = state.players.find(function (p) { return p.id === offer.toId; });
+    if (!from || !to) return;
+
+    function propNames(ids) { return ids.length ? ids.map(function (id) { return D.PROPERTIES[id].name; }).join('、') : '—'; }
+    function stockNames(map) {
+      const ks = Object.keys(map);
+      return ks.length ? ks.map(function (s) { return D.STOCKS[s].name + '×' + map[s]; }).join('、') : '—';
+    }
+
+    const html = `
+      <div class="modal-head"><h3 class="modal-title">🤝 ${to.name}，收到交易请求</h3></div>
+      <div class="modal-body">
+        <p><b>${from.name}</b> 向你发起如下交换：</p>
+        <div class="trade-cols">
+          <div class="trade-col">
+            <div class="section-title">${from.name} 提供</div>
+            <ul class="trade-list">
+              <li>现金 ¥${fmt(offer.giveCash)}</li>
+              <li>地产：${propNames(offer.giveProperties)}</li>
+              <li>股票：${stockNames(offer.giveStocks)}</li>
+            </ul>
+          </div>
+          <div class="trade-col">
+            <div class="section-title">需 ${to.name} 提供</div>
+            <ul class="trade-list">
+              <li>现金 ¥${fmt(offer.getCash)}</li>
+              <li>地产：${propNames(offer.getProperties)}</li>
+              <li>股票：${stockNames(offer.getStocks)}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" id="trade-reject">拒绝</button>
+        <button class="btn btn-primary" id="trade-accept">接受</button>
+      </div>
+    `;
+    showModal(html, { wide: true, closable: false });
+
+    setTimeout(function () {
+      const card = $('#modal-card');
+      if (!card) return;
+      card.querySelector('#trade-accept').onclick = function () {
+        if (global.gameUI && global.gameUI.onAcceptTrade) global.gameUI.onAcceptTrade();
+      };
+      card.querySelector('#trade-reject').onclick = function () {
+        if (global.gameUI && global.gameUI.onRejectTrade) global.gameUI.onRejectTrade();
+      };
     }, 0);
   }
 
@@ -1272,6 +1469,8 @@
     showBankModal: showBankModal,
     showFinancingModal: showFinancingModal,
     showAuctionModal: showAuctionModal,
+    showTradeModal: showTradeModal,
+    showTradeOfferModal: showTradeOfferModal,
     showGameOverModal: showGameOverModal,
     showToast: showToast,
     initTabs: initTabs,
