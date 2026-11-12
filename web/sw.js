@@ -1,5 +1,5 @@
 /* 城市资本家 City Tycoon — Service Worker */
-const CACHE_NAME = 'citytycoon-v1';
+const CACHE_NAME = 'citytycoon-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -41,7 +41,9 @@ self.addEventListener('activate', function (event) {
   self.clients.claim();
 });
 
-// 拦截请求，优先使用缓存
+// 拦截请求：同源资源采用“网络优先、缓存兜底”
+// 这样改了 CSS/JS 后刷新即可生效，不需要每次手动升级 CACHE_NAME；
+// 断网时仍会回落到缓存，离线可玩不受影响。
 self.addEventListener('fetch', function (event) {
   const url = new URL(event.request.url);
 
@@ -50,32 +52,31 @@ self.addEventListener('fetch', function (event) {
     return;
   }
 
+  if (url.origin !== self.location.origin || event.request.method !== 'GET') {
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request)
-      .then(function (cached) {
-        // 有缓存则返回，否则从网络获取并缓存
-        if (cached) {
-          return cached;
+    fetch(event.request)
+      .then(function (response) {
+        if (response && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME)
+            .then(function (cache) {
+              cache.put(event.request, responseToCache);
+            });
         }
-        return fetch(event.request)
-          .then(function (response) {
-            if (!response || response.status !== 200) {
-              return response;
-            }
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME)
-              .then(function (cache) {
-                cache.put(event.request, responseToCache);
-              });
-            return response;
-          })
-          .catch(function (err) {
-            console.log('[SW] 网络请求失败:', err);
-            // 如果是HTML请求，返回离线页面
-            if (event.request.destination === 'document') {
-              return caches.match('./index.html');
-            }
-          });
+        return response;
+      })
+      .catch(function () {
+        console.log('[SW] 网络不可用，回落缓存');
+        return caches.match(event.request).then(function (cached) {
+          if (cached) return cached;
+          // 如果是HTML请求，返回离线页面
+          if (event.request.destination === 'document') {
+            return caches.match('./index.html');
+          }
+        });
       })
   );
 });

@@ -19,6 +19,8 @@
     <!-- ============ 大厅 ============ -->
     <section id="lobby-screen" class="screen active">
       <div class="lobby-decor" aria-hidden="true">
+        <div class="skyline sky-far"></div>
+        <div class="skyline sky-near"></div>
         <span class="decor-building b1">🏢</span>
         <span class="decor-building b2">🏦</span>
         <span class="decor-building b3">🏙️</span>
@@ -147,16 +149,23 @@
     <!-- ============ 游戏 ============ -->
     <section id="game-screen" class="screen">
       <header class="topbar">
-        <div class="topbar-brand">
-          <span class="brand-mark">🏙️</span>
-          <span class="brand-name">城市资本家</span>
+        <div class="tb-id">
+          <div class="tb-avatar" id="tb-avatar">🎩</div>
+          <div class="tb-text">
+            <div class="tb-name" id="tb-name">城市资本家</div>
+            <div class="tb-sub"><span class="pill pill-ghost" id="turn-label">等待开局</span></div>
+          </div>
+        </div>
+        <div class="tb-stats">
+          <div class="tb-stat tb-cash"><span>现金</span><b id="tb-cash">¥0</b></div>
+          <div class="tb-stat tb-net"><span>总资产</span><b id="tb-net">¥0</b></div>
         </div>
         <div class="topbar-meta">
           <span class="pill pill-round" id="round-label">第 1 回合</span>
           <span class="pill" id="mode-label">限时模式</span>
-          <span class="pill pill-ghost" id="turn-label">等待开局</span>
         </div>
         <div class="topbar-actions">
+          <button class="icon-btn" id="sfx-btn" title="关闭音效" aria-label="关闭音效">🔊</button>
           <button class="icon-btn" id="export-btn" title="导出存档" aria-label="导出存档">💾</button>
           <button class="icon-btn" id="quit-btn" title="返回大厅" aria-label="返回大厅">✕</button>
         </div>
@@ -175,9 +184,9 @@
 
         <aside class="side-panel">
           <div class="tabs" id="tabs">
-            <button data-tab="overview" class="active">概览</button>
-            <button data-tab="assets">资产</button>
-            <button data-tab="market">市场</button>
+            <button data-tab="overview" class="active"><span class="tab-ico">📋</span>概览</button>
+            <button data-tab="assets"><span class="tab-ico">💼</span>资产</button>
+            <button data-tab="market"><span class="tab-ico">📈</span>市场</button>
           </div>
 
           <div class="tab-body">
@@ -192,9 +201,13 @@
           <div class="action-bar" id="action-bar"></div>
         </aside>
       </main>
+
+      <nav class="dock" id="dock" aria-label="快捷操作"></nav>
     </section>
 
   </div>
+
+  <canvas id="fx-layer" aria-hidden="true"></canvas>
 
   <div id="modal-root" class="modal-root hidden" role="dialog" aria-modal="true">
     <div class="modal-backdrop" data-action="modal-backdrop"></div>

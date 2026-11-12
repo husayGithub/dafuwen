@@ -395,6 +395,8 @@
   }
 
   function switchToLobbyScreen() {
+    // 弹窗挂在游戏屏之外，直接回大厅会残留遮罩与滚动锁
+    UI.hideModal();
     UI.$('#game-screen').classList.remove('active');
     UI.$('#lobby-screen').classList.add('active');
     clearAITimer();
@@ -411,6 +413,12 @@
     UI.updateCenterInfo(gameState);
     UI.renderSidePanel(gameState);
     updateTopBar(gameState);
+
+    // 侧栏渲染完页面高度才会变、滚动条出现后棋盘宽度随之收窄，
+    // 下一帧重新校准 --cell 与棋子尺寸
+    requestAnimationFrame(function () {
+      if (gameState) UI.renderTokens(gameState);
+    });
 
     // 联机模式：同步状态给其他玩家
     if (gameConfig.playMode === 'online' && MP.state.isHost) {
@@ -475,6 +483,9 @@
     };
 
     // 顶部按钮
+    const sfxBtn = UI.$('#sfx-btn');
+    if (sfxBtn) sfxBtn.onclick = function () { UI.toggleSfx(); };
+
     const exportBtn = UI.$('#export-btn');
     if (exportBtn) exportBtn.onclick = saveGame;
 
@@ -493,6 +504,19 @@
     window.addEventListener('resize', function () {
       if (gameState) UI.renderTokens(gameState);
     });
+
+    // 棋盘实际宽度变化时（滚动条出现、面板高度变化等）重新校准
+    const boardWrap = UI.$('#board-wrap');
+    if (boardWrap && typeof ResizeObserver === 'function') {
+      let lastWidth = -1;
+      const ro = new ResizeObserver(function (entries) {
+        const w = Math.round(entries[0].contentRect.width);
+        if (w === lastWidth) return;
+        lastWidth = w;
+        if (gameState) UI.renderTokens(gameState);
+      });
+      ro.observe(boardWrap);
+    }
   }
 
   /* ---------- 游戏操作 ---------- */
@@ -529,9 +553,10 @@
     const result = E.buyProperty(gameState, cur.id, pd.propertyId);
     if (result.ok) {
       UI.showToast('购买成功！', 'success');
-      // 购买成功动画
-      UI.flashTile(pd.propertyId);
+      // 金币粒子用旧节点的位置爆开；盖章必须等棋盘重建后再加，否则会加在即将销毁的节点上
+      UI.showCoinBurst(document.querySelector('.tile[data-property="' + pd.propertyId + '"]'));
       renderGame();
+      UI.flashTile(pd.propertyId);
       scheduleAITurn();
     } else {
       UI.showToast(result.message, 'error');
