@@ -58,7 +58,8 @@ class GameHostService : Service() {
                 createChannel()
                 val notif = buildNotification()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+                    // 局域网服务属于数据同步类型；connectedDevice 需要蓝牙/USB 权限，在 Android 14 上会抛 SecurityException
+                    startForeground(NOTIF_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
                 } else {
                     startForeground(NOTIF_ID, notif)
                 }
