@@ -17,7 +17,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Groovy DSL 的布尔属性名是 minifyEnabled（isMinifyEnabled 仅 Kotlin DSL 可用）
+            minifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
